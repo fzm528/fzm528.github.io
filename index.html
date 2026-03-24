@@ -105,7 +105,7 @@
         .btn-copy-url:hover { background: #2e7d32; }
         .btn-close-modal { background: #90a4ae; color: white; border: none; padding: 10px 25px; border-radius: 3px; cursor: pointer; font-size: 15px; margin-left: 10px; }
         .btn-close-modal:hover { background: #78909c; }
-        .share-progress { color: #666; font-size: 13px; margin-top: 10px; }
+        .share-progress { color: #666; font-size: 13px; margin-top: 10px; line-height: 1.6; }
 
         .expire-btn { padding: 8px 18px; border-radius: 3px; border: 2px solid #388e3c; background: white; color: #388e3c; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.2s; }
         .expire-btn:hover { background: #e8f5e9; }
@@ -242,6 +242,7 @@
 
         const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        // 自动检测登录状态
         (async function() {
             const { data: { session } } = await _supabase.auth.getSession();
             if (session) {
@@ -257,10 +258,10 @@
             const err   = document.getElementById('loginError');
             const btn   = document.querySelector('.login-btn');
 
-            if (!email || !pass) { 
-                err.style.display = 'block'; 
-                err.innerText = '请输入账号和密码！'; 
-                return; 
+            if (!email || !pass) {
+                err.style.display = 'block';
+                err.innerText = '请输入账号和密码！';
+                return;
             }
 
             btn.innerText = '登录中...';
@@ -284,90 +285,90 @@
             if (e.key === 'Enter') checkLogin();
         });
 
-        let bgImgsData = []; 
-        let bgImgsObjects = []; 
-        let previewQrImg = null;
+        let bgImgsData    = [];
+        let bgImgsObjects = [];
+        let previewQrImg  = null;
         let generatedImages = [];
 
         function initApp() {
             const savedBgs = localStorage.getItem('myCapBg_Gallery');
-            if (savedBgs) { 
-                try { 
-                    bgImgsData = JSON.parse(savedBgs); 
-                    loadGalleryFromData(); 
-                } catch(e) {} 
+            if (savedBgs) {
+                try {
+                    bgImgsData = JSON.parse(savedBgs);
+                    loadGalleryFromData();
+                } catch(e) {}
             }
         }
 
         async function loadGalleryFromData() {
-            bgImgsObjects = []; 
-            const gallery = document.getElementById('bgGallery'); 
+            bgImgsObjects = [];
+            const gallery = document.getElementById('bgGallery');
             gallery.innerHTML = '';
-            if (bgImgsData.length === 0) { 
-                gallery.innerHTML = '<span class="gallery-empty">当前没有底图，请点击上方按钮添加</span>'; 
-                return; 
+            if (bgImgsData.length === 0) {
+                gallery.innerHTML = '<span class="gallery-empty">当前没有底图，请点击上方按钮添加</span>';
+                return;
             }
             for (let i = 0; i < bgImgsData.length; i++) {
-                const img = new Image(); 
-                img.src = bgImgsData[i]; 
+                const img = new Image();
+                img.src = bgImgsData[i];
                 await new Promise(r => img.onload = r);
                 bgImgsObjects.push(img);
-                const thumb = document.createElement('img'); 
-                thumb.className = 'gallery-item'; 
-                thumb.src = bgImgsData[i]; 
+                const thumb = document.createElement('img');
+                thumb.className = 'gallery-item';
+                thumb.src = bgImgsData[i];
                 gallery.appendChild(thumb);
             }
-            generatePreviewQR(); 
+            generatePreviewQR();
         }
 
         function handleBgUpload(event) {
-            const files = event.target.files; 
+            const files = event.target.files;
             if (!files || files.length === 0) return;
             let processedCount = 0;
             for (let i = 0; i < files.length; i++) {
-                const file = files[i]; 
+                const file   = files[i];
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const tempImg = new Image();
                     tempImg.onload = function() {
-                        const MAX_SIZE = 600; 
+                        const MAX_SIZE = 600;
                         let w = tempImg.width, h = tempImg.height;
-                        if (w > MAX_SIZE || h > MAX_SIZE) { 
-                            if (w > h) { h = (MAX_SIZE / w) * h; w = MAX_SIZE; } 
-                            else { w = (MAX_SIZE / h) * w; h = MAX_SIZE; } 
+                        if (w > MAX_SIZE || h > MAX_SIZE) {
+                            if (w > h) { h = (MAX_SIZE / w) * h; w = MAX_SIZE; }
+                            else { w = (MAX_SIZE / h) * w; h = MAX_SIZE; }
                         }
-                        const canvas = document.createElement('canvas'); 
+                        const canvas = document.createElement('canvas');
                         canvas.width = w; canvas.height = h;
                         canvas.getContext('2d').drawImage(tempImg, 0, 0, w, h);
                         const resizedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                        bgImgsData.push(resizedBase64); 
+                        bgImgsData.push(resizedBase64);
                         processedCount++;
                         if (processedCount === files.length) {
                             try { localStorage.setItem('myCapBg_Gallery', JSON.stringify(bgImgsData)); } catch (err) {}
                             loadGalleryFromData();
                         }
-                    }; 
+                    };
                     tempImg.src = e.target.result;
-                }; 
+                };
                 reader.readAsDataURL(file);
             }
         }
 
         function clearBackgrounds() {
-            if (confirm("确定要清空所有底图吗？")) { 
-                bgImgsData = []; bgImgsObjects = []; 
-                localStorage.removeItem('myCapBg_Gallery'); 
-                loadGalleryFromData(); 
+            if (confirm("确定要清空所有底图吗？")) {
+                bgImgsData = []; bgImgsObjects = [];
+                localStorage.removeItem('myCapBg_Gallery');
+                loadGalleryFromData();
             }
         }
 
         function toggleTweakPanel() {
             const panel = document.getElementById('tweakPanel');
-            if (panel.style.display === 'block') { 
-                panel.style.display = 'none'; 
+            if (panel.style.display === 'block') {
+                panel.style.display = 'none';
             } else {
                 if (bgImgsObjects.length === 0) { alert("请至少上传1张底图！"); return; }
-                panel.style.display = 'block'; 
+                panel.style.display = 'block';
                 generatePreviewQR();
             }
         }
@@ -375,77 +376,84 @@
         function generatePreviewQR() {
             if (typeof QRious === 'undefined' || previewQrImg) return;
             const qr = new QRious({ value: "https://www.baidu.com", size: 300, level: 'H', backgroundAlpha: 0 });
-            previewQrImg = new Image(); 
-            previewQrImg.onload = drawPreviewWithRandomParams; 
+            previewQrImg = new Image();
+            previewQrImg.onload = drawPreviewWithRandomParams;
             previewQrImg.src = qr.toDataURL();
         }
 
         function getRandomVal(minId, maxId) {
-            let min = parseFloat(document.getElementById(minId).value) || 0; 
+            let min = parseFloat(document.getElementById(minId).value) || 0;
             let max = parseFloat(document.getElementById(maxId).value) || 0;
-            if (min > max) { let temp = min; min = max; max = temp; } 
+            if (min > max) { let temp = min; min = max; max = temp; }
             return Math.random() * (max - min) + min;
         }
 
         function drawPreviewWithRandomParams() {
             if (!previewQrImg || bgImgsObjects.length === 0) return;
-            const canvas = document.getElementById('previewCanvas');
-            const ctx    = canvas.getContext('2d');
-            const randomBg = bgImgsObjects[Math.floor(Math.random() * bgImgsObjects.length)];
-            const envParams = { 
-                bgRot:   getRandomVal('bgRotMin',   'bgRotMax'), 
-                bgScale: getRandomVal('bgScaleMin', 'bgScaleMax'), 
-                bgLight: getRandomVal('bgLightMin', 'bgLightMax'), 
-                bgBlur:  getRandomVal('bgBlurMin',  'bgBlurMax') 
+            const canvas    = document.getElementById('previewCanvas');
+            const ctx       = canvas.getContext('2d');
+            const randomBg  = bgImgsObjects[Math.floor(Math.random() * bgImgsObjects.length)];
+            const envParams = {
+                bgRot:   getRandomVal('bgRotMin',   'bgRotMax'),
+                bgScale: getRandomVal('bgScaleMin', 'bgScaleMax'),
+                bgLight: getRandomVal('bgLightMin', 'bgLightMax'),
+                bgBlur:  getRandomVal('bgBlurMin',  'bgBlurMax')
             };
-            const qrParams = { 
-                offsetX: getRandomVal('xMin',    'xMax'), 
-                offsetY: getRandomVal('yMin',    'yMax'), 
-                size:    getRandomVal('sizeMin', 'sizeMax'), 
-                skewY:   getRandomVal('skewMin', 'skewMax'), 
-                blur:    getRandomVal('blurMin', 'blurMax'), 
-                opacity: getRandomVal('opMin',   'opMax') 
+            const qrParams = {
+                offsetX: getRandomVal('xMin',    'xMax'),
+                offsetY: getRandomVal('yMin',    'yMax'),
+                size:    getRandomVal('sizeMin', 'sizeMax'),
+                skewY:   getRandomVal('skewMin', 'skewMax'),
+                blur:    getRandomVal('blurMin', 'blurMax'),
+                opacity: getRandomVal('opMin',   'opMax')
             };
             drawScene(canvas, ctx, randomBg, previewQrImg, envParams, qrParams);
         }
 
         function drawScene(canvas, ctx, currentBgImg, qrImgObj, envParams, qrParams) {
-            canvas.width = currentBgImg.width; 
-            canvas.height = currentBgImg.height; 
+            canvas.width  = currentBgImg.width;
+            canvas.height = currentBgImg.height;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.save(); 
-            const centerBgX = canvas.width / 2; 
+
+            ctx.save();
+            const centerBgX = canvas.width  / 2;
             const centerBgY = canvas.height / 2;
-            ctx.translate(centerBgX, centerBgY); 
-            ctx.rotate(envParams.bgRot * Math.PI / 180); 
+            ctx.translate(centerBgX, centerBgY);
+            ctx.rotate(envParams.bgRot * Math.PI / 180);
             ctx.scale(envParams.bgScale, envParams.bgScale);
-            ctx.filter = `brightness(${envParams.bgLight}) blur(${envParams.bgBlur}px)`; 
-            ctx.drawImage(currentBgImg, -centerBgX, -centerBgY, canvas.width, canvas.height); 
-            ctx.restore(); 
-            ctx.save(); 
-            const centerQrX = (canvas.width / 2)  + qrParams.offsetX; 
+            ctx.filter = `brightness(${envParams.bgLight}) blur(${envParams.bgBlur}px)`;
+            ctx.drawImage(currentBgImg, -centerBgX, -centerBgY, canvas.width, canvas.height);
+            ctx.restore();
+
+            ctx.save();
+            const centerQrX = (canvas.width  / 2) + qrParams.offsetX;
             const centerQrY = (canvas.height / 2) + qrParams.offsetY;
-            ctx.translate(centerQrX, centerQrY); 
-            ctx.rotate((-1) * Math.PI / 180); 
+            ctx.translate(centerQrX, centerQrY);
+            ctx.rotate((-1) * Math.PI / 180);
             ctx.scale(1, qrParams.skewY);
-            ctx.filter = `blur(${qrParams.blur}px)`; 
-            ctx.globalAlpha = qrParams.opacity; 
+            ctx.filter = `blur(${qrParams.blur}px)`;
+            ctx.globalAlpha = qrParams.opacity;
             ctx.globalCompositeOperation = 'multiply';
-            ctx.drawImage(qrImgObj, -qrParams.size/2, -qrParams.size/2, qrParams.size, qrParams.size); 
+            ctx.drawImage(qrImgObj, -qrParams.size/2, -qrParams.size/2, qrParams.size, qrParams.size);
             ctx.restore();
         }
 
         function loadImageAsync(src) {
-            return new Promise((resolve, reject) => { 
-                const img = new Image(); 
-                img.onload  = () => resolve(img); 
-                img.onerror = () => reject(new Error("渲染失败")); 
-                img.src = src; 
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload  = () => resolve(img);
+                img.onerror = () => reject(new Error("渲染失败"));
+                img.src = src;
             });
         }
 
-        function openLightbox(src)  { document.getElementById('lightboxImg').src = src; document.getElementById('lightbox').style.display = 'flex'; }
-        function closeLightbox()    { document.getElementById('lightbox').style.display = 'none'; }
+        function openLightbox(src) {
+            document.getElementById('lightboxImg').src = src;
+            document.getElementById('lightbox').style.display = 'flex';
+        }
+        function closeLightbox() {
+            document.getElementById('lightbox').style.display = 'none';
+        }
 
         function updateMarkedCount() {
             const count      = document.querySelectorAll('.card.marked').length;
@@ -461,24 +469,24 @@
             let textContent = "";
             markedCards.forEach(card => { textContent += card.dataset.originalText + "\n"; });
             const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
-            const url  = URL.createObjectURL(blob); 
+            const url  = URL.createObjectURL(blob);
             const a    = document.createElement('a');
-            a.href = url; a.download = "已标记数据.txt"; 
+            a.href = url; a.download = "已标记数据.txt";
             document.body.appendChild(a); a.click();
             document.body.removeChild(a); URL.revokeObjectURL(url);
         }
 
         async function generateMockups() {
-            const errorLog = document.getElementById('errorLog'); 
-            errorLog.style.display = 'none'; 
+            const errorLog = document.getElementById('errorLog');
+            errorLog.style.display = 'none';
 
-            if (typeof QRious === 'undefined') { 
-                errorLog.style.display = 'block'; 
-                errorLog.innerHTML = "❌ 找不到 qrious.min.js，请确认文件在同目录下"; 
-                return; 
+            if (typeof QRious === 'undefined') {
+                errorLog.style.display = 'block';
+                errorLog.innerHTML = "❌ 找不到 qrious.min.js，请确认文件在同目录下";
+                return;
             }
             if (bgImgsObjects.length === 0) { alert("⚠️ 请先上传底图！"); return; }
-            
+
             const rawLines = document.getElementById('inputText').value.split('\n');
             const lines    = rawLines.map(l => l.trim()).filter(l => l !== '');
             if (lines.length === 0) { alert("请输入数据！"); return; }
@@ -491,98 +499,98 @@
             exportArea.style.display = 'none';
             generatedImages = [];
 
-            genBtn.innerText  = "🚀 正在处理中..."; 
-            genBtn.disabled   = true; 
-            output.innerHTML  = ''; 
+            genBtn.innerText = "🚀 正在处理中...";
+            genBtn.disabled  = true;
+            output.innerHTML = '';
             resultContainer.style.display = 'block';
 
-            const offCanvas = document.createElement('canvas'); 
+            const offCanvas = document.createElement('canvas');
             const offCtx    = offCanvas.getContext('2d');
 
             try {
                 for (let i = 0; i < lines.length; i++) {
-                    const link = lines[i];
-                    const qr   = new QRious({ value: link, size: 300, level: 'H', backgroundAlpha: 0 });
+                    const link  = lines[i];
+                    const qr    = new QRious({ value: link, size: 300, level: 'H', backgroundAlpha: 0 });
                     const qrImg = await loadImageAsync(qr.toDataURL());
                     const randomBgImg = bgImgsObjects[Math.floor(Math.random() * bgImgsObjects.length)];
-                    
-                    const envParams = { 
-                        bgRot:   getRandomVal('bgRotMin',   'bgRotMax'), 
-                        bgScale: getRandomVal('bgScaleMin', 'bgScaleMax'), 
-                        bgLight: getRandomVal('bgLightMin', 'bgLightMax'), 
-                        bgBlur:  getRandomVal('bgBlurMin',  'bgBlurMax') 
+
+                    const envParams = {
+                        bgRot:   getRandomVal('bgRotMin',   'bgRotMax'),
+                        bgScale: getRandomVal('bgScaleMin', 'bgScaleMax'),
+                        bgLight: getRandomVal('bgLightMin', 'bgLightMax'),
+                        bgBlur:  getRandomVal('bgBlurMin',  'bgBlurMax')
                     };
-                    const qrParams = { 
-                        offsetX: getRandomVal('xMin',    'xMax'), 
-                        offsetY: getRandomVal('yMin',    'yMax'), 
-                        size:    getRandomVal('sizeMin', 'sizeMax'), 
-                        skewY:   getRandomVal('skewMin', 'skewMax'), 
-                        blur:    getRandomVal('blurMin', 'blurMax'), 
-                        opacity: getRandomVal('opMin',   'opMax') 
+                    const qrParams = {
+                        offsetX: getRandomVal('xMin',    'xMax'),
+                        offsetY: getRandomVal('yMin',    'yMax'),
+                        size:    getRandomVal('sizeMin', 'sizeMax'),
+                        skewY:   getRandomVal('skewMin', 'skewMax'),
+                        blur:    getRandomVal('blurMin', 'blurMax'),
+                        opacity: getRandomVal('opMin',   'opMax')
                     };
 
                     drawScene(offCanvas, offCtx, randomBgImg, qrImg, envParams, qrParams);
                     const base64Img = offCanvas.toDataURL('image/jpeg', 0.85);
-                    
+
                     generatedImages.push({ index: i + 1, base64: base64Img, originalText: link });
-                    
-                    const card = document.createElement('div'); 
+
+                    const card = document.createElement('div');
                     card.className = 'card';
                     card.dataset.originalText = link;
                     card.dataset.imgIndex = i;
 
-                    const header = document.createElement('div'); 
+                    const header     = document.createElement('div');
                     header.className = 'card-header';
-                    const titleSpan    = document.createElement('span'); 
-                    titleSpan.innerText = i + 1; 
-                    const downloadLink  = document.createElement('a'); 
-                    downloadLink.innerText  = '⬇️下载';
-                    downloadLink.href       = base64Img; 
-                    downloadLink.download   = `${i + 1}.jpg`;
-                    header.appendChild(titleSpan); 
+                    const titleSpan  = document.createElement('span');
+                    titleSpan.innerText = i + 1;
+                    const downloadLink  = document.createElement('a');
+                    downloadLink.innerText = '⬇️下载';
+                    downloadLink.href      = base64Img;
+                    downloadLink.download  = `${i + 1}.jpg`;
+                    header.appendChild(titleSpan);
                     header.appendChild(downloadLink);
-                    
-                    const body = document.createElement('div'); 
+
+                    const body     = document.createElement('div');
                     body.className = 'card-body';
-                    const img  = document.createElement('img'); 
-                    img.src    = base64Img; 
-                    img.onclick = () => openLightbox(base64Img); 
+                    const img      = document.createElement('img');
+                    img.src        = base64Img;
+                    img.onclick    = () => openLightbox(base64Img);
                     body.appendChild(img);
-                    
-                    const footer  = document.createElement('div'); 
+
+                    const footer   = document.createElement('div');
                     footer.className = 'card-footer';
-                    const markBtn = document.createElement('button'); 
-                    markBtn.className = 'btn-mark'; 
+                    const markBtn  = document.createElement('button');
+                    markBtn.className = 'btn-mark';
                     markBtn.innerText = '标记';
                     markBtn.onclick   = function() {
-                        card.classList.toggle('marked'); 
+                        card.classList.toggle('marked');
                         this.innerText = card.classList.contains('marked') ? '取消标记' : '标记';
                         updateMarkedCount();
                     };
                     footer.appendChild(markBtn);
-                    
-                    card.appendChild(header); 
-                    card.appendChild(body); 
+
+                    card.appendChild(header);
+                    card.appendChild(body);
                     card.appendChild(footer);
                     output.appendChild(card);
-                    
-                    await new Promise(r => setTimeout(r, 10)); 
+
+                    await new Promise(r => setTimeout(r, 10));
                 }
 
                 exportArea.style.display = 'block';
                 document.getElementById('exportBtn').innerText = `下载 (0个) 已标记的数据内容`;
 
             } catch (error) {
-                errorLog.style.display = 'block'; 
+                errorLog.style.display = 'block';
                 errorLog.innerText = "❌ 处理失败: " + error.message;
             } finally {
-                genBtn.innerText = "第4步: 启动批量处理"; 
+                genBtn.innerText = "第4步: 启动批量处理";
                 genBtn.disabled  = false;
             }
         }
 
         // ==========================================
-        // 7. 分享功能（已改为 public URL）
+        // 分享功能（public URL + SDK上传）
         // ==========================================
         let selectedExpireHours = 48;
 
@@ -595,13 +603,12 @@
 
         function createShare() {
             if (generatedImages.length === 0) { alert('请先处理数据！'); return; }
-            const shareModal = document.getElementById('shareModal');
-            document.getElementById('shareUrlInput').style.display = 'none';
-            document.getElementById('shareBtnRow').style.display = 'none';
-            document.getElementById('startShareBtn').style.display = 'block';
-            document.getElementById('shareProgress').innerText = '';
-            document.getElementById('shareUrlInput').value = '';
-            shareModal.style.display = 'flex';
+            document.getElementById('shareUrlInput').style.display  = 'none';
+            document.getElementById('shareBtnRow').style.display    = 'none';
+            document.getElementById('startShareBtn').style.display  = 'block';
+            document.getElementById('shareProgress').innerText      = '';
+            document.getElementById('shareUrlInput').value          = '';
+            document.getElementById('shareModal').style.display     = 'flex';
         }
 
         async function startUploadAndShare() {
@@ -614,81 +621,81 @@
 
             const shareProgress = document.getElementById('shareProgress');
             const shareUrlInput = document.getElementById('shareUrlInput');
-            document.getElementById('startShareBtn').style.display = 'none';
+            document.getElementById('startShareBtn').style.display        = 'none';
             document.getElementById('expireSelector').style.pointerEvents = 'none';
-            shareProgress.innerText = '⏳ 正在上传，请稍候...';
+            shareProgress.innerText = '⏳ 准备上传...';
 
             try {
                 const shareId  = 'share_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
                 const filePaths = [];
 
                 for (let i = 0; i < generatedImages.length; i++) {
-                    const item = generatedImages[i];
+                    const item     = generatedImages[i];
                     shareProgress.innerText = `⏳ 正在上传第 ${i + 1} / ${generatedImages.length} 张...`;
 
-                    const res      = await fetch(item.base64);
-                    const blob     = await res.blob();
-                    const fileName = `${shareId}/${i + 1}.jpg`;
-
-                    const uploadRes = await fetch(
-                        `${SUPABASE_URL}/storage/v1/object/cap-images/${fileName}`,
-                        {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${SUPABASE_KEY}`,
-                                'Content-Type': 'image/jpeg',
-                                'apikey': SUPABASE_KEY
-                            },
-                            body: blob
-                        }
-                    );
-                    if (!uploadRes.ok) {
-                        const errText = await uploadRes.text();
-                        throw new Error(`上传第${i+1}张失败: ${errText}`);
+                    // base64 → blob
+                    let blob;
+                    try {
+                        const res = await fetch(item.base64);
+                        blob = await res.blob();
+                    } catch (e) {
+                        throw new Error(`第${i+1}张图片转换失败: ${e.message}`);
                     }
 
-                    // ✅ 直接用 public URL，不再生成签名URL
+                    const fileName = `${shareId}/${i + 1}.jpg`;
+
+                    // ✅ SDK 上传
+                    const { data: uploadData, error: uploadError } = await _supabase.storage
+                        .from('cap-images')
+                        .upload(fileName, blob, {
+                            contentType: 'image/jpeg',
+                            upsert: false
+                        });
+
+                    if (uploadError) {
+                        throw new Error(`第${i+1}张上传失败: ${uploadError.message}`);
+                    }
+
+                    // ✅ SDK 获取 public URL（永不过期）
+                    const { data: urlData } = _supabase.storage
+                        .from('cap-images')
+                        .getPublicUrl(fileName);
+
+                    if (!urlData || !urlData.publicUrl) {
+                        throw new Error(`第${i+1}张获取公开链接失败，请检查 Storage Bucket 是否设为 Public`);
+                    }
+
                     filePaths.push({
                         index: item.index,
-                        path: fileName,
+                        url: urlData.publicUrl,
                         originalText: item.originalText
                     });
+
+                    shareProgress.innerText = `✅ 已上传 ${i + 1} / ${generatedImages.length} 张`;
                 }
 
-                // ✅ 拼接 public URL（短且稳定，手机也能正常加载）
-                const imageUrls = filePaths.map((f) => ({
-                    index: f.index,
-                    url: `${SUPABASE_URL}/storage/v1/object/public/cap-images/${f.path}`,
-                    originalText: f.originalText
-                }));
-
+                // 保存到数据库
                 const expireAt = Math.floor(Date.now() / 1000) + expireSeconds;
+                shareProgress.innerText = '⏳ 正在保存记录...';
 
-                shareProgress.innerText = '⏳ 正在保存数据...';
-                const dbRes = await fetch(`${SUPABASE_URL}/rest/v1/share_sessions`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': SUPABASE_KEY,
-                        'Authorization': `Bearer ${SUPABASE_KEY}`,
-                        'Prefer': 'return=minimal'
-                    },
-                    body: JSON.stringify({ id: shareId, images: imageUrls, expire_at: expireAt })
-                });
-                if (!dbRes.ok) {
-                    const errText = await dbRes.text();
-                    throw new Error('保存失败: ' + errText);
+                const { error: dbError } = await _supabase
+                    .from('share_sessions')
+                    .insert({ id: shareId, images: filePaths, expire_at: expireAt });
+
+                if (dbError) {
+                    throw new Error('保存数据库失败: ' + dbError.message);
                 }
 
                 const viewerUrl = `${location.origin}${location.pathname.replace('index.html', '')}viewer.html?id=${shareId}`;
                 shareUrlInput.value = viewerUrl;
                 shareUrlInput.style.display = 'block';
                 document.getElementById('shareBtnRow').style.display = 'block';
-                shareProgress.innerText = `✅ 完成！${expireHours}小时内有效，共 ${generatedImages.length} 张`;
+                shareProgress.innerText = `✅ 完成！链接 ${expireHours} 小时内有效，共 ${generatedImages.length} 张`;
 
             } catch (err) {
-                shareProgress.innerText = '❌ 失败：' + err.message;
+                shareProgress.innerHTML = `❌ 失败：${err.message}<br><span style="font-size:12px;color:#999;">请截图此错误发给管理员</span>`;
                 document.getElementById('startShareBtn').style.display = 'block';
+                console.error('上传错误详情:', err);
             } finally {
                 document.getElementById('expireSelector').style.pointerEvents = 'auto';
             }
