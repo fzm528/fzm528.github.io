@@ -99,6 +99,11 @@
         .btn-close-modal:hover { background: #7f8c8d; }
         .share-progress { color: #666; font-size: 13px; margin-top: 10px; }
 
+        /* 过期时间选择按钮 */
+        .expire-btn { padding: 8px 18px; border-radius: 4px; border: 2px solid #27ae60; background: white; color: #27ae60; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.2s; }
+        .expire-btn:hover { background: #eafaf1; }
+        .expire-btn.active { background: #27ae60; color: white; }
+
         /* 创建分享按钮 */
         .btn-share { color: #27ae60; border: 2px solid #27ae60; font-weight: bold; }
         .btn-share:hover:not(:disabled) { background-color: #27ae60; color: white; }
@@ -124,10 +129,29 @@
     <!-- 分享弹窗 -->
     <div id="shareModal">
         <div class="share-box">
-            <h3>🎉 分享链接已生成</h3>
-            <p style="color:#666;font-size:13px;">将以下链接发给对方，对方可直接查看所有图片并标记</p>
-            <input type="text" id="shareUrlInput" class="share-url-input" readonly>
-            <div>
+            <h3>🔗 生成分享链接</h3>
+            <p style="color:#666;font-size:13px;">选择链接有效期，超时后对方将无法查看</p>
+
+            <div style="margin:15px 0;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;" id="expireSelector">
+                <button onclick="setExpire(this,48)"  class="expire-btn active">48 小时</button>
+                <button onclick="setExpire(this,72)"  class="expire-btn">72 小时</button>
+                <button onclick="setExpire(this,168)" class="expire-btn">7 天</button>
+                <button onclick="setExpire(this,-1)"  class="expire-btn">自定义</button>
+            </div>
+            <div id="customExpireArea" style="display:none;margin-bottom:10px;">
+                <input type="number" id="customExpireHours" min="1" max="8760" value="24"
+                    style="width:100px;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:14px;text-align:center;">
+                <span style="font-size:13px;color:#666;margin-left:6px;">小时</span>
+            </div>
+
+            <button class="btn-copy-url" onclick="startUploadAndShare()"
+                id="startShareBtn" style="width:100%;margin-bottom:10px;">
+                🚀 开始上传并生成链接
+            </button>
+
+            <input type="text" id="shareUrlInput" class="share-url-input" readonly
+                placeholder="链接生成后显示在这里..." style="display:none;">
+            <div id="shareBtnRow" style="display:none;margin-top:5px;">
                 <button class="btn-copy-url" onclick="copyShareUrl()">📋 复制链接</button>
                 <button class="btn-close-modal" onclick="closeShareModal()">关闭</button>
             </div>
@@ -200,9 +224,6 @@
     <script src="./qrious.min.js"></script>
 
     <script>
-        // ==========================================
-        // Supabase 配置
-        // ==========================================
         const SUPABASE_URL = 'https://ydkueradjskldwiiqsey.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_nJGBEc9vwUffTV1sTbNt3A_C4kE26UI';
 
@@ -232,7 +253,7 @@
         let bgImgsData = []; 
         let bgImgsObjects = []; 
         let previewQrImg = null;
-        let generatedImages = []; // 存储所有生成的图片base64
+        let generatedImages = [];
 
         function initApp() {
             const savedBgs = localStorage.getItem('myCapBg_Gallery');
@@ -361,7 +382,6 @@
             canvas.width = currentBgImg.width; 
             canvas.height = currentBgImg.height; 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
             ctx.save(); 
             const centerBgX = canvas.width / 2; 
             const centerBgY = canvas.height / 2;
@@ -371,7 +391,6 @@
             ctx.filter = `brightness(${envParams.bgLight}) blur(${envParams.bgBlur}px)`; 
             ctx.drawImage(currentBgImg, -centerBgX, -centerBgY, canvas.width, canvas.height); 
             ctx.restore(); 
-            
             ctx.save(); 
             const centerQrX = (canvas.width / 2)  + qrParams.offsetX; 
             const centerQrY = (canvas.height / 2) + qrParams.offsetY;
@@ -448,7 +467,7 @@
             const exportArea      = document.getElementById('exportMarkedArea');
 
             exportArea.style.display = 'none';
-            generatedImages = []; // 清空上次生成的图片
+            generatedImages = [];
 
             genBtn.innerText  = "🚀 正在生成中..."; 
             genBtn.disabled   = true; 
@@ -483,10 +502,8 @@
                     drawScene(offCanvas, offCtx, randomBgImg, qrImg, envParams, qrParams);
                     const base64Img = offCanvas.toDataURL('image/jpeg', 0.85);
                     
-                    // 保存图片和原文
                     generatedImages.push({ index: i + 1, base64: base64Img, originalText: link });
                     
-                    // 生成卡片
                     const card = document.createElement('div'); 
                     card.className = 'card';
                     card.dataset.originalText = link;
@@ -530,7 +547,6 @@
                     await new Promise(r => setTimeout(r, 10)); 
                 }
 
-                // 生成完毕，显示底部按钮区
                 exportArea.style.display = 'block';
                 document.getElementById('exportBtn').innerText = `下载 (0个) 已标记的二维码内容`;
 
@@ -544,35 +560,53 @@
         }
 
         // ==========================================
-        // 7. 创建分享链接（上传到 Supabase）
+        // 7. 分享功能
         // ==========================================
-        async function createShare() {
-            if (generatedImages.length === 0) {
-                alert('请先生成图片！');
-                return;
-            }
+        let selectedExpireHours = 48;
 
-            const shareModal    = document.getElementById('shareModal');
+        function setExpire(btn, hours) {
+            document.querySelectorAll('.expire-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedExpireHours = hours;
+            document.getElementById('customExpireArea').style.display = hours === -1 ? 'block' : 'none';
+        }
+
+        function createShare() {
+            if (generatedImages.length === 0) { alert('请先生成图片！'); return; }
+            const shareModal = document.getElementById('shareModal');
+            document.getElementById('shareUrlInput').style.display = 'none';
+            document.getElementById('shareBtnRow').style.display = 'none';
+            document.getElementById('startShareBtn').style.display = 'block';
+            document.getElementById('shareProgress').innerText = '';
+            document.getElementById('shareUrlInput').value = '';
+            shareModal.style.display = 'flex';
+        }
+
+        async function startUploadAndShare() {
+            let expireHours = selectedExpireHours;
+            if (expireHours === -1) {
+                expireHours = parseInt(document.getElementById('customExpireHours').value) || 24;
+                if (expireHours < 1) { alert('请输入有效的小时数！'); return; }
+            }
+            const expireSeconds = expireHours * 3600;
+
             const shareProgress = document.getElementById('shareProgress');
             const shareUrlInput = document.getElementById('shareUrlInput');
-            shareModal.style.display = 'flex';
-            shareUrlInput.value = '';
+            document.getElementById('startShareBtn').style.display = 'none';
+            document.getElementById('expireSelector').style.pointerEvents = 'none';
             shareProgress.innerText = '⏳ 正在上传图片，请稍候...';
 
             try {
-                // 生成唯一分享ID
-                const shareId = 'share_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                const imageUrls = [];
+                const shareId   = 'share_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                const filePaths = [];
 
-                // 逐张上传图片到 Storage
-               for (let i = 0; i < generatedImages.length; i++) {
+                // 1. 逐张上传
+                for (let i = 0; i < generatedImages.length; i++) {
                     const item = generatedImages[i];
                     shareProgress.innerText = `⏳ 正在上传第 ${i + 1} / ${generatedImages.length} 张...`;
 
-                    // base64 转 Blob
                     const res  = await fetch(item.base64);
                     const blob = await res.blob();
-
                     const fileName = `${shareId}/${i + 1}.jpg`;
 
                     const uploadRes = await fetch(
@@ -587,20 +621,48 @@
                             body: blob
                         }
                     );
-
                     if (!uploadRes.ok) {
                         const errText = await uploadRes.text();
                         throw new Error(`上传第${i+1}张失败: ${errText}`);
                     }
-
-                    // 获取公开URL
-                    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/cap-images/${fileName}`;
-                    imageUrls.push({ index: item.index, url: publicUrl, originalText: item.originalText });
+                    filePaths.push({ index: item.index, path: `${shareId}/${i + 1}.jpg`, originalText: item.originalText });
                 }
 
-                shareProgress.innerText = '⏳ 正在保存分享数据...';
+                // 2. 批量生成 Signed URL
+                shareProgress.innerText = '⏳ 正在生成签名链接...';
+                const signRes = await fetch(
+                    `${SUPABASE_URL}/storage/v1/object/sign/cap-images`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${SUPABASE_KEY}`,
+                            'apikey': SUPABASE_KEY,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            expiresIn: expireSeconds,
+                            paths: filePaths.map(f => f.path)
+                        })
+                    }
+                );
+                if (!signRes.ok) {
+                    const errText = await signRes.text();
+                    throw new Error('生成签名链接失败: ' + errText);
+                }
+                const signedList = await signRes.json();
 
-                // 存入数据库
+                // 3. 组合数据
+                const imageUrls = filePaths.map((f, i) => ({
+                    index: f.index,
+                    url: `${SUPABASE_URL}/storage/v1${signedList[i].signedURL}`,
+                    originalText: f.originalText
+                }));
+
+                // 4. 过期时间戳
+                const expireAt = Math.floor(Date.now() / 1000) + expireSeconds;
+
+                // 5. 存入数据库
+                shareProgress.innerText = '⏳ 正在保存分享数据...';
                 const dbRes = await fetch(`${SUPABASE_URL}/rest/v1/share_sessions`, {
                     method: 'POST',
                     headers: {
@@ -609,21 +671,25 @@
                         'Authorization': `Bearer ${SUPABASE_KEY}`,
                         'Prefer': 'return=minimal'
                     },
-                    body: JSON.stringify({ id: shareId, images: imageUrls })
+                    body: JSON.stringify({ id: shareId, images: imageUrls, expire_at: expireAt })
                 });
-
                 if (!dbRes.ok) {
                     const errText = await dbRes.text();
                     throw new Error('保存数据失败: ' + errText);
                 }
 
-                // 生成分享URL
+                // 6. 显示分享链接
                 const viewerUrl = `${location.origin}${location.pathname.replace('index.html', '')}viewer.html?id=${shareId}`;
                 shareUrlInput.value = viewerUrl;
-                shareProgress.innerText = `✅ 上传完成！共 ${generatedImages.length} 张图片`;
+                shareUrlInput.style.display = 'block';
+                document.getElementById('shareBtnRow').style.display = 'block';
+                shareProgress.innerText = `✅ 完成！${expireHours}小时内有效，共 ${generatedImages.length} 张`;
 
             } catch (err) {
                 shareProgress.innerText = '❌ 失败：' + err.message;
+                document.getElementById('startShareBtn').style.display = 'block';
+            } finally {
+                document.getElementById('expireSelector').style.pointerEvents = 'auto';
             }
         }
 
