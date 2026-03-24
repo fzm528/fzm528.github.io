@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片查看</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f8f9fa; margin: 0; padding: 0; color: #333; }
+
+        .header { background: #343a40; color: white; padding: 15px 30px; display: flex; align-items: center; justify-content: space-between; }
+        .header h1 { margin: 0; font-size: 18px; font-weight: normal; }
+        .header span { font-size: 13px; color: #adb5bd; }
+
+        .container { max-width: 960px; margin: 30px auto; padding: 0 20px; }
+
+        #loadingTip { text-align: center; padding: 80px 20px; color: #888; font-size: 16px; }
+        #errorTip   { text-align: center; padding: 80px 20px; color: #e74c3c; font-size: 16px; display: none; }
+
+        #output { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+
+        .card { border: 1px solid #e2e2e2; border-radius: 6px; background: #fff; display: flex; flex-direction: column; padding: 12px; transition: all 0.2s; }
+        .card.marked { background-color: #e6f7ff; border-color: #2196f3; box-shadow: 0 0 10px rgba(33,150,243,0.2); }
+
+        .card-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; font-size: 15px; font-weight: bold; color: #333; }
+
+        .card-body { text-align: center; }
+        .card-body img { width: 100%; height: auto; display: block; border: 1px solid #eee; cursor: zoom-in; transition: transform 0.2s; }
+        .card-body img:hover { transform: scale(1.02); }
+
+        .card-footer { margin-top: 10px; }
+        .btn-mark { width: 100%; padding: 8px; font-size: 13px; cursor: pointer; border-radius: 4px; border: 1px solid #d9d9d9; background: #fafafa; color: #333; }
+        .btn-mark:hover { background: #f0f0f0; }
+        .card.marked .btn-mark { background: #2196f3; border-color: #2196f3; color: white; }
+        .card.marked .btn-mark:hover { background: #1976d2; }
+
+        #markedBar { position: fixed; bottom: 0; left: 0; width: 100%; background: #2c3e50; color: white; padding: 14px 20px; display: none; text-align: center; font-size: 15px; z-index: 999; }
+        #markedBar span { margin-right: 20px; }
+
+        #lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; cursor: zoom-out; }
+        #lightbox img { max-width: 90vw; max-height: 90vh; border: 3px solid #fff; border-radius: 4px; }
+        #lightbox-tip { position: absolute; top: 20px; color: white; font-size: 14px; opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🖼️ 图片查看</h1>
+        <span id="headerInfo">加载中...</span>
+    </div>
+
+    <div id="lightbox" onclick="closeLightbox()">
+        <div id="lightbox-tip">点击任意区域关闭</div>
+        <img id="lightboxImg" src="">
+    </div>
+
+    <div class="container">
+        <div id="loadingTip">⏳ 正在加载图片，请稍候...</div>
+        <div id="errorTip"></div>
+        <div id="output" style="display:none;"></div>
+    </div>
+
+    <div id="markedBar">
+        <span id="markedCount">已标记 0 张</span>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://ydkueradjskldwiiqsey.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_nJGBEc9vwUffTV1sTbNt3A_C4kE26UI';
+
+        // 从URL获取分享ID
+        const urlParams = new URLSearchParams(location.search);
+        const shareId   = urlParams.get('id');
+
+        async function loadShare() {
+            const loadingTip = document.getElementById('loadingTip');
+            const errorTip   = document.getElementById('errorTip');
+            const output     = document.getElementById('output');
+            const headerInfo = document.getElementById('headerInfo');
+
+            if (!shareId) {
+                loadingTip.style.display = 'none';
+                errorTip.style.display   = 'block';
+                errorTip.innerText = '❌ 无效的分享链接';
+                return;
+            }
+
+            try {
+                // 从数据库读取分享数据
+                const res = await fetch(
+                    `${SUPABASE_URL}/rest/v1/share_sessions?id=eq.${shareId}&select=*`,
+                    {
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`
+                        }
+                    }
+                );
+
+                const data = await res.json();
+
+                if (!data || data.length === 0) {
+                    throw new Error('分享链接不存在或已过期');
+                }
+
+                const session = data[0];
+                const images  = session.images;
+
+                headerInfo.innerText = `共 ${images.length} 张图片`;
+                loadingTip.style.display = 'none';
+                output.style.display = 'grid';
+
+                // 渲染图片卡片
+                images.forEach((item, i) => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+
+                    const header = document.createElement('div');
+                    header.className = 'card-header';
+                    header.innerHTML = `<span>${item.index}</span>`;
+
+                    const body = document.createElement('div');
+                    body.className = 'card-body';
+                    const img = document.createElement('img');
+                    img.src = item.url;
+                    img.onclick = () => openLightbox(item.url);
+                    body.appendChild(img);
+
+                    const footer = document.createElement('div');
+                    footer.className = 'card-footer';
+                    const markBtn = document.createElement('button');
+                    markBtn.className = 'btn-mark';
+                    markBtn.innerText = '标记';
+                    markBtn.onclick = function() {
+                        card.classList.toggle('marked');
+                        this.innerText = card.classList.contains('marked') ? '取消标记' : '标记';
+                        updateMarkedCount();
+                    };
+                    footer.appendChild(markBtn);
+
+                    card.appendChild(header);
+                    card.appendChild(body);
+                    card.appendChild(footer);
+                    output.appendChild(card);
+                });
+
+            } catch (err) {
+                loadingTip.style.display = 'none';
+                errorTip.style.display   = 'block';
+                errorTip.innerText = '❌ 加载失败：' + err.message;
+            }
+        }
+
+        function updateMarkedCount() {
+            const count    = document.querySelectorAll('.card.marked').length;
+            const markedBar = document.getElementById('markedBar');
+            const markedCount = document.getElementById('markedCount');
+            if (count > 0) {
+                markedBar.style.display = 'block';
+                markedCount.innerText = `已标记 ${count} 张`;
+            } else {
+                markedBar.style.display = 'none';
+            }
+        }
+
+        function openLightbox(src) {
+            document.getElementById('lightboxImg').src = src;
+            document.getElementById('lightbox').style.display = 'flex';
+        }
+        function closeLightbox() {
+            document.getElementById('lightbox').style.display = 'none';
+        }
+
+        // 页面加载时自动读取
+        loadShare();
+    </script>
+</body>
+</html>
