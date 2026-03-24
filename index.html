@@ -240,12 +240,8 @@
         const SUPABASE_URL = 'https://ydkueradjskldwiiqsey.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlka3VlcmFkanNrbGR3aWlxc2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMzM1OTYsImV4cCI6MjA4OTkwOTU5Nn0.m9RD7Rdb9TSQA4IGeVBi1Jo2dL3q0tEF8EGw4hWNqSc';
 
-        // ==========================================
-        // 1. 登录验证（Supabase 真实登录）
-        // ==========================================
         const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // 页面加载时检查是否已登录
         (async function() {
             const { data: { session } } = await _supabase.auth.getSession();
             if (session) {
@@ -288,9 +284,6 @@
             if (e.key === 'Enter') checkLogin();
         });
 
-        // ==========================================
-        // 2. 底图管理
-        // ==========================================
         let bgImgsData = []; 
         let bgImgsObjects = []; 
         let previewQrImg = null;
@@ -368,9 +361,6 @@
             }
         }
 
-        // ==========================================
-        // 3. 预览面板
-        // ==========================================
         function toggleTweakPanel() {
             const panel = document.getElementById('tweakPanel');
             if (panel.style.display === 'block') { 
@@ -454,15 +444,9 @@
             });
         }
 
-        // ==========================================
-        // 4. 灯箱
-        // ==========================================
         function openLightbox(src)  { document.getElementById('lightboxImg').src = src; document.getElementById('lightbox').style.display = 'flex'; }
         function closeLightbox()    { document.getElementById('lightbox').style.display = 'none'; }
 
-        // ==========================================
-        // 5. 标记 & 导出
-        // ==========================================
         function updateMarkedCount() {
             const count      = document.querySelectorAll('.card.marked').length;
             const exportArea = document.getElementById('exportMarkedArea');
@@ -484,9 +468,6 @@
             document.body.removeChild(a); URL.revokeObjectURL(url);
         }
 
-        // ==========================================
-        // 6. 核心生成逻辑
-        // ==========================================
         async function generateMockups() {
             const errorLog = document.getElementById('errorLog'); 
             errorLog.style.display = 'none'; 
@@ -601,7 +582,7 @@
         }
 
         // ==========================================
-        // 7. 分享功能
+        // 7. 分享功能（已改为 public URL）
         // ==========================================
         let selectedExpireHours = 48;
 
@@ -638,15 +619,15 @@
             shareProgress.innerText = '⏳ 正在上传，请稍候...';
 
             try {
-                const shareId   = 'share_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                const shareId  = 'share_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
                 const filePaths = [];
 
                 for (let i = 0; i < generatedImages.length; i++) {
                     const item = generatedImages[i];
                     shareProgress.innerText = `⏳ 正在上传第 ${i + 1} / ${generatedImages.length} 张...`;
 
-                    const res  = await fetch(item.base64);
-                    const blob = await res.blob();
+                    const res      = await fetch(item.base64);
+                    const blob     = await res.blob();
                     const fileName = `${shareId}/${i + 1}.jpg`;
 
                     const uploadRes = await fetch(
@@ -665,34 +646,19 @@
                         const errText = await uploadRes.text();
                         throw new Error(`上传第${i+1}张失败: ${errText}`);
                     }
-                    filePaths.push({ index: item.index, path: `${shareId}/${i + 1}.jpg`, originalText: item.originalText });
+
+                    // ✅ 直接用 public URL，不再生成签名URL
+                    filePaths.push({
+                        index: item.index,
+                        path: fileName,
+                        originalText: item.originalText
+                    });
                 }
 
-                shareProgress.innerText = '⏳ 正在生成链接...';
-                const signRes = await fetch(
-                    `${SUPABASE_URL}/storage/v1/object/sign/cap-images`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${SUPABASE_KEY}`,
-                            'apikey': SUPABASE_KEY,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            expiresIn: expireSeconds,
-                            paths: filePaths.map(f => f.path)
-                        })
-                    }
-                );
-                if (!signRes.ok) {
-                    const errText = await signRes.text();
-                    throw new Error('生成链接失败: ' + errText);
-                }
-                const signedList = await signRes.json();
-
-                const imageUrls = filePaths.map((f, i) => ({
+                // ✅ 拼接 public URL（短且稳定，手机也能正常加载）
+                const imageUrls = filePaths.map((f) => ({
                     index: f.index,
-                    url: `${SUPABASE_URL}/storage/v1${signedList[i].signedURL}`,
+                    url: `${SUPABASE_URL}/storage/v1/object/public/cap-images/${f.path}`,
                     originalText: f.originalText
                 }));
 
