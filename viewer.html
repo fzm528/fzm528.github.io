@@ -41,7 +41,6 @@
         #lightbox img { max-width: 90vw; max-height: 90vh; border: 3px solid #fff; border-radius: 4px; }
         #lightbox-tip { position: absolute; top: 20px; color: white; font-size: 14px; opacity: 0.8; }
 
-        /* 过期提示样式 */
         .expire-warning { background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 10px 20px; text-align: center; font-size: 13px; }
     </style>
 </head>
@@ -76,6 +75,77 @@
         const urlParams = new URLSearchParams(location.search);
         const shareId   = urlParams.get('id');
 
+        // ==========================================
+        // 自动清理过期分享（每次打开页面触发）
+        // ==========================================
+        async function cleanExpiredShares() {
+            try {
+                const now = Math.floor(Date.now() / 1000);
+
+                // 1. 查询所有过期记录
+                const res = await fetch(
+                    `${SUPABASE_URL}/rest/v1/share_sessions?expire_at=lt.${now}&select=id,images`,
+                    {
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`
+                        }
+                    }
+                );
+                const expiredList = await res.json();
+                if (!Array.isArray(expiredList) || expiredList.length === 0) {
+                    console.log('✅ 没有过期数据需要清理');
+                    return;
+                }
+
+                console.log(`🧹 发现 ${expiredList.length} 条过期记录，开始清理...`);
+
+                for (const item of expiredList) {
+                    const sid    = item.id;
+                    const images = item.images || [];
+
+                    // 2. 删除Storage里该shareId下的所有图片
+                    for (let i = 0; i < images.length; i++) {
+                        const filePath = `${sid}/${i + 1}.jpg`;
+                        await fetch(
+                            `${SUPABASE_URL}/storage/v1/object/cap-images/${filePath}`,
+                            {
+                                method: 'DELETE',
+                                headers: {
+                                    'apikey': SUPABASE_KEY,
+                                    'Authorization': `Bearer ${SUPABASE_KEY}`
+                                }
+                            }
+                        );
+                    }
+
+                    // 3. 删除数据库记录
+                    await fetch(
+                        `${SUPABASE_URL}/rest/v1/share_sessions?id=eq.${sid}`,
+                        {
+                            method: 'DELETE',
+                            headers: {
+                                'apikey': SUPABASE_KEY,
+                                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                                'Content-Type': 'application/json'
+                            }
+                        }
+                    );
+
+                    console.log(`🗑️ 已清理: ${sid}（${images.length} 张）`);
+                }
+
+                console.log('✅ 清理完成！');
+
+            } catch (err) {
+                // 清理失败不影响正常使用
+                console.log('清理出错（不影响正常使用）:', err);
+            }
+        }
+
+        // ==========================================
+        // 加载分享内容
+        // ==========================================
         async function loadShare() {
             const loadingTip = document.getElementById('loadingTip');
             const errorTip   = document.getElementById('errorTip');
@@ -108,7 +178,6 @@
 
                 const session = data[0];
 
-                // ✅ 检查是否过期
                 if (session.expire_at) {
                     const now = Math.floor(Date.now() / 1000);
                     if (now > session.expire_at) {
@@ -117,11 +186,9 @@
                         errorTip.innerHTML = '⏰ 该分享链接已过期，请联系对方重新生成';
                         return;
                     }
-                    // 显示剩余时间
                     const leftHours = Math.ceil((session.expire_at - now) / 3600);
                     headerInfo.innerText = `共 ${session.images.length} 张 · 剩余有效期 ${leftHours} 小时`;
 
-                    // 不足24小时显示橙色警告
                     if (leftHours <= 24) {
                         const banner = document.getElementById('expireBanner');
                         banner.style.display = 'block';
@@ -190,6 +257,8 @@
             document.getElementById('lightbox').style.display = 'none';
         }
 
+        // 先清理过期数据，再加载当前分享
+        cleanExpiredShares();
         loadShare();
     </script>
 </body>
